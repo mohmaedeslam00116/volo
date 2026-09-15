@@ -18,6 +18,12 @@ import { validateKeyInput, decideSave, secretsPath, parseStored } from "./keySto
 import { asProviderId } from "../shared/providers.ts";
 import { summarizeUsage } from "../shared/usage.ts";
 import {
+  startPayloadSchema,
+  sendPayloadSchema,
+  sessionIdPayloadSchema,
+  setKeyPayloadSchema,
+} from "../shared/schemas.ts";
+import {
   decideApproval,
   buildToolPolicies,
   USER_REJECTED_TOOL_REASON,
@@ -33,6 +39,12 @@ function send(evt: string, payload: unknown): void {
 
 function validPrompt(p: unknown): string | null {
   return typeof p === "string" && p.trim().length > 0 && p.length <= 4000 ? p.trim() : null;
+}
+
+/** Parse an IPC payload against a schema; null on any mismatch (fail-closed). */
+function parseIpc<T>(schema: { safeParse: (v: unknown) => { success: true; data: T } | { success: false } }, v: unknown): T | null {
+  const r = schema.safeParse(v);
+  return r.success ? r.data : null;
 }
 
 async function askWithTimeout(tool: string, input: string) {
@@ -107,22 +119,22 @@ function loadStoredKey(): { available: boolean; providerId: string | null; apiKe
   }
 }
 
-ipcMain.handle(
-  "volo:set-key",
-  async (_ev, { providerId, apiKey }: { providerId: unknown; apiKey: unknown }) => {
-    const v = validateKeyInput({ providerId, apiKey });
-    if (!v.ok) throw new Error(`invalid-key:${v.error}`);
-    if (!decideSave(safeStorage.isEncryptionAvailable())) throw new Error("encryption-unavailable");
-    if (!win) throw new Error("no-window");
-    const enc = safeStorage.encryptString(apiKey as string).toString("hex");
-    writeFileSync(
-      storedPath(),
-      JSON.stringify({ providerId, enc, updatedAt: new Date().toISOString() }),
-      { mode: 0o600 },
-    );
-    return { ok: true, providerId };
-  },
-);
+ipcMain.handle("volo:set-key", async (_ev, payload: unknown) => {
+  const parsed = parseIpc(setKeyPayloadSchema, payload);
+  if (!parsed) throw new Error("invalid-key:bad-payload");
+  const { providerId, apiKey } = parsed;
+  const v = validateKeyInput({ providerId, apiKey });
+  if (!v.ok) throw new Error(`invalid-key:${v.error}`);
+  if (!decideSave(safeStorage.isEncryptionAvailable())) throw new Error("encryption-unavailable");
+  if (!win) throw new Error("no-window");
+  const enc = safeStorage.encryptString(apiKey).toString("hex");
+  writeFileSync(
+    storedPath(),
+    JSON.stringify({ providerId, enc, updatedAt: new Date().toISOString() }),
+    { mode: 0o600 },
+  );
+  return { ok: true, providerId };
+});
 
 ipcMain.handle("volo:key-status", async () => {
   const s = loadStoredKey();
@@ -138,12 +150,11 @@ ipcMain.handle("volo:clear-key", async () => {
   return { ok: true };
 });
 
-ipcMain.handle(
-  "volo:start",
-  async (
-    _ev,
-    { prompt, model }: { prompt: unknown; model?: { provider?: unknown; model?: unknown } },
-  ) => {
+ipcMain.handle("volo:start", async (_ev, payload: unknown) => {
+  const parsed = parseIpc(startPayloadSchema, payload);
+  if (!parsed) throw new Error("prompt must be 1-4000 characters");
+  const { prompt, model } = parsed;
+  {
     const clean = validPrompt(prompt);
     if (!clean) throw new Error("prompt must be 1-4000 characters");
     const c = await ensureCore();
@@ -175,27 +186,25 @@ ipcMain.handle(
       toolPolicies: buildToolPolicies(),
     });
     return { sessionId: session.sessionId };
-  },
-);
+  }
+});
 
-ipcMain.handle(
-  "volo:send",
-  async (_ev, { sessionId, prompt }: { sessionId: unknown; prompt: unknown }) => {
-    const clean = validPrompt(prompt);
-    if (!clean || typeof sessionId !== "string") throw new Error("bad send args");
-    const c = await ensureCore();
-    // Verified contract: runTurn takes a flat { sessionId, prompt } — the old
-    // {type:"user_message"} wrapper was never part of the SDK surface.
-    await c.send({ sessionId, prompt: clean });
-    return { ok: true };
-  },
-);
+ipcMain.handle("volo:send", async (_ev, payload: unknown) => {
+  const parsed = parseIpc(sendPayloadSchema, payload);
+  if (!parsed) throw new Error("bad send args");
+  const c = await ensureCore();
+  // Verified contract: runTurn takes a flat { sessionId, prompt } — the old
+  // {type:"user_message"} wrapper was never part of the SDK surface.
+  await c.send({ sessionId: parsed.sessionId, prompt: parsed.prompt });
+  return { ok: true };
+});
 
-ipcMain.handle("volo:stop", async (_ev, { sessionId }: { sessionId: unknown }) => {
-  if (typeof sessionId !== "string") throw new Error("bad stop args");
+ipcMain.handle("volo:stop", async (_ev, payload: unknown) => {
+  const parsed = parseIpc(sessionIdPayloadSchema, payload);
+  if (!parsed) throw new Error("bad stop args");
   const c = await ensureCore();
   // stop = end the session for good; abort only interrupts a tool.
-  await c.stop(sessionId);
+  await c.stop(parsed.sessionId);
   return { ok: true };
 });
 
@@ -205,10 +214,11 @@ ipcMain.handle("volo:list", async () => {
   return { sessions };
 });
 
-ipcMain.handle("volo:usage", async (_ev, { sessionId }: { sessionId: unknown }) => {
-  if (typeof sessionId !== "string" || !sessionId) throw new Error("bad usage args");
+ipcMain.handle("volo:usage", async (_ev, payload: unknown) => {
+  const parsed = parseIpc(sessionIdPayloadSchema, payload);
+  if (!parsed) throw new Error("bad usage args");
   const c = await ensureCore();
-  return summarizeUsage(await c.getAccumulatedUsage(sessionId));
+  return summarizeUsage(await c.getAccumulatedUsage(parsed.sessionId));
 });
 
 ipcMain.handle("volo:win", (_ev, action: unknown) => {
