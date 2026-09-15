@@ -6,6 +6,7 @@
 //  - provider IDs: anthropic | openai-native | gemini (never "openai"/"google")
 import { randomUUID } from "node:crypto";
 import { app, BrowserWindow, dialog, ipcMain, safeStorage } from "electron";
+import electronUpdater from "electron-updater";
 import { join } from "node:path";
 import { readFileSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { z } from "zod";
@@ -38,6 +39,29 @@ import {
 
 let win: BrowserWindow | null = null;
 let cline: ClineCore | null = null;
+
+// ---- Auto-update (electron-updater, GitHub Releases provider) ------------
+// Zero-cost honesty: the only network traffic is the standard GitHub Releases
+// check (documented in the README). Failure is silent and never blocks the app.
+const { autoUpdater } = electronUpdater;
+let updateState: "idle" | "available" | "none" = "idle";
+
+function setupAutoUpdater(): void {
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on("update-available", () => {
+    updateState = "available";
+    send("update", { state: "available" });
+  });
+  autoUpdater.on("update-not-available", () => {
+    updateState = "none";
+  });
+  autoUpdater.on("error", () => {
+    /* silent: offline / private repo / rate limit must never surface as noise */
+  });
+  // In dev / unpackaged runs electron-updater would throw; guard by env.
+  if (app.isPackaged) autoUpdater.checkForUpdates().catch(() => {});
+}
 
 function send(evt: string, payload: unknown): void {
   if (win && !win.isDestroyed()) win.webContents.send("volo:event", { evt, payload });
@@ -354,6 +378,22 @@ ipcMain.handle("volo:respond-approval", async (_ev, payload: unknown) => {
   return { ok: true };
 });
 
+ipcMain.handle("volo:install-update", async () => {
+  if (updateState !== "available") return { ok: false };
+  autoUpdater.quitAndInstall();
+  return { ok: true };
+});
+
+ipcMain.handle("volo:check-update", async () => {
+  if (!app.isPackaged) return { ok: false, state: "idle" };
+  try {
+    await autoUpdater.checkForUpdates();
+  } catch {
+    /* silent */
+  }
+  return { ok: true, state: updateState };
+});
+
 ipcMain.handle("volo:win", (_ev, action: unknown) => {
   if (!win) return { ok: false };
   if (action === "min") win.minimize();
@@ -379,7 +419,10 @@ function createWindow(): void {
   else win.loadFile(join(__dirname, "../renderer/index.html"));
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  createWindow();
+  setupAutoUpdater();
+});
 app.on("window-all-closed", () => {
   cline?.dispose?.();
   app.quit();

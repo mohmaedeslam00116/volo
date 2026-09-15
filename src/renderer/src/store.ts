@@ -65,6 +65,8 @@ interface VoloState {
   draft: string;
   meter: string;
   hasKey: boolean | null; // null = unknown yet (boot)
+  updateAvailable: boolean;
+  installUpdate: () => Promise<void>;
   viewedHistory: TranscriptMessage[] | null; // transcript of the viewed past session
   viewingPast: boolean; // true while a past (not live) session is open
   openPastSession: (id: string) => Promise<void>;
@@ -105,6 +107,10 @@ export const useVolo = create<VoloState>((set, get) => ({
   draft: "",
   meter: "$0.00 · 0 رمز",
   hasKey: null,
+  updateAvailable: false,
+  async installUpdate() {
+    await window.volo.installUpdate();
+  },
   viewedHistory: null,
   viewingPast: false,
   async openPastSession(id) {
@@ -163,6 +169,11 @@ export const useVolo = create<VoloState>((set, get) => ({
   },
 
   handleEvent(msg) {
+    if (msg.evt === "update") {
+      const p = msg.payload as { state?: string };
+      if (p?.state === "available") set({ updateAvailable: true });
+      return;
+    }
     if (msg.evt === "approval-request") {
       const p = msg.payload as {
         id?: string;

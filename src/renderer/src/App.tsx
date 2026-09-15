@@ -1,4 +1,4 @@
-import { MessageSquarePlus, SendHorizontal, StopCircle } from "lucide-react";
+import { MessageSquarePlus, RefreshCw, SendHorizontal, StopCircle } from "lucide-react";
 import React from "react";
 import { formatUsage } from "../../shared/usage";
 import { ApprovalDialog } from "./components/ApprovalDialog";
@@ -208,6 +208,24 @@ function Inspector() {
   );
 }
 
+function UpdateBanner() {
+  const updateAvailable = useVolo((s) => s.updateAvailable);
+  const installUpdate = useVolo((s) => s.installUpdate);
+  if (!updateAvailable) return null;
+  return (
+    <div
+      className="flex items-center gap-2 justify-center py-1.5 text-[12px] text-lantern-bright bg-night-raised border-b border-line"
+      role="status"
+    >
+      <RefreshCw size={12} />
+      <span>إصدار جديد متاح وتم تنزيله.</span>
+      <button className="nav-item w-auto !py-0.5 text-lantern-bright" onClick={installUpdate}>
+        أعد التشغيل للتحديث
+      </button>
+    </div>
+  );
+}
+
 export default function App() {
   const error = useVolo((s) => s.error);
   const activeId = useVolo((s) => s.activeId);
@@ -248,6 +266,7 @@ export default function App() {
       <TitleBar />
       <Sidebar />
       <main className="workspace area-main" aria-label="المحادثة">
+        <UpdateBanner />
         {error && (
           <div className="banner-error" role="alert" style={{ margin: 16 }}>
             {error}

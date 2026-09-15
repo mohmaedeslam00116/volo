@@ -31,7 +31,7 @@ export interface ApprovalRequestPayload {
 }
 
 export interface VoloEventMessage {
-  evt: "approval" | "approval-request" | "session";
+  evt: "approval" | "approval-request" | "session" | "update";
   payload: unknown;
 }
 
@@ -55,6 +55,8 @@ export interface VoloApi {
   setModel(provider: string, model: string): Promise<{ ok: true }>;
   win(action: "min" | "max" | "close"): Promise<{ ok: boolean }>;
   respondApproval(id: string, approved: boolean): Promise<{ ok: true }>;
+  checkUpdate(): Promise<{ ok: boolean; state: string }>;
+  installUpdate(): Promise<{ ok: boolean }>;
   onEvent(fn: (msg: VoloEventMessage) => void): void;
 }
 
@@ -74,6 +76,8 @@ const api: VoloApi = {
   setModel: (provider, model) => ipcRenderer.invoke("volo:set-model", { provider, model }),
   win: (action) => ipcRenderer.invoke("volo:win", action),
   respondApproval: (id, approved) => ipcRenderer.invoke("volo:respond-approval", { id, approved }),
+  checkUpdate: () => ipcRenderer.invoke("volo:check-update"),
+  installUpdate: () => ipcRenderer.invoke("volo:install-update"),
   onEvent: (fn) => ipcRenderer.on("volo:event", (_e, msg: VoloEventMessage) => fn(msg)),
 };
 
