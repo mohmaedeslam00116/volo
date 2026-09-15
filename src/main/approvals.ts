@@ -1,11 +1,15 @@
 // Pure approval policy (no Electron import: unit-testable under plain node).
-// Canonical headless tool names verified in @cline/core (default host tools).
+// Tool names verified in @cline/core 0.0.83 (default host tools).
 // Fail-closed: anything not explicitly listed resolves to DENY.
 
 export const APPROVAL_TIMEOUT_MS = 120_000;
 
+/** Canonical reason @cline/shared matches to classify a user rejection. */
+export const USER_REJECTED_TOOL_REASON =
+  "This tool call was rejected by the user and not executed.";
+
 // Read-only: proceed silently, logged.
-export const TIER_AUTO = new Set([
+export const TIER_AUTO: ReadonlySet<string> = new Set([
   "read_files",
   "search_codebase",
   "fetch_web_content",
@@ -14,7 +18,7 @@ export const TIER_AUTO = new Set([
 ]);
 
 // Writes, edits, commands, skills, schedules: ask every time.
-export const TIER_ASK = new Set([
+export const TIER_ASK: ReadonlySet<string> = new Set([
   "editor",
   "apply_patch",
   "run_commands",
@@ -23,7 +27,7 @@ export const TIER_ASK = new Set([
 ]);
 
 // Hard-deny: never offered, never executed (MCP deferred to v1.1).
-export const TIER_DENY_TOOLS = new Set([
+export const TIER_DENY_TOOLS: ReadonlySet<string> = new Set([
   "spawn_agent",
   "teams",
   "team_spawn_teammate",
@@ -46,7 +50,7 @@ export const TIER_DENY_TOOLS = new Set([
   "team_list_outcomes",
 ]);
 
-const TIER_DENY_PATTERNS = [
+const TIER_DENY_PATTERNS: readonly RegExp[] = [
   /rm\s+-rf/i,
   /mkfs/i,
   /diskpart/i,
@@ -56,8 +60,10 @@ const TIER_DENY_PATTERNS = [
   /wget.*\|\s*(sh|bash)/i,
 ];
 
+export type ApprovalVerdict = "allow" | "ask" | "deny";
+
 /** Pure verdict: "allow" | "ask" | "deny". Unknown tools deny. */
-export function decideApproval(toolName, input) {
+export function decideApproval(toolName: unknown, input: unknown): ApprovalVerdict {
   const tool = typeof toolName === "string" ? toolName : "";
   const text = typeof input === "string" ? input : JSON.stringify(input ?? "");
   if (TIER_DENY_TOOLS.has(tool)) return "deny";
@@ -69,9 +75,15 @@ export function decideApproval(toolName, input) {
   return "deny"; // fail-closed: unlisted (incl. all MCP tools) deny
 }
 
-/** toolPolicies mirror for ClineCore.start: explicit per-tool autoApprove. */
-export function buildToolPolicies() {
-  const p = {};
+export interface ToolPolicy {
+  enabled?: boolean;
+  autoApprove?: boolean;
+}
+
+/** toolPolicies mirror for ClineCore.start: explicit per-tool policy.
+ *  Shape verified against @cline/shared ToolPolicy { enabled?, autoApprove? }. */
+export function buildToolPolicies(): Record<string, ToolPolicy> {
+  const p: Record<string, ToolPolicy> = {};
   for (const t of TIER_AUTO) p[t] = { autoApprove: true };
   for (const t of TIER_ASK) p[t] = { autoApprove: false };
   for (const t of TIER_DENY_TOOLS) p[t] = { enabled: false };

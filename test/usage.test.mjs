@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { summarizeUsage, formatUsage } from "../src/shared/usage.js";
+import { summarizeUsage, formatUsage } from "../src/shared/usage.ts";
 
 describe("summarizeUsage", () => {
   it("reads zero on nothing", () => {
