@@ -1,7 +1,7 @@
 {
   "name": "volo",
   "version": "1.0.0",
-  "description": "",
+  "description": "Volo — Arabic-first desktop shell over the Cline agent harness.",
   "main": "./out/main/index.js",
   "scripts": {
     "test": "node --test test/*.test.mjs",
@@ -9,6 +9,7 @@
     "start": "electron ./out/main",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "dist": "electron-vite build && electron-builder --win --publish never",
     "preview": "electron-vite preview"
   },
   "repository": {
@@ -26,7 +27,6 @@
   "dependencies": {
     "@cline/sdk": "^0.0.83",
     "clsx": "^2.1.1",
-    "electron": "^44.4.0",
     "lucide-react": "^1.46.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
@@ -40,6 +40,8 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^4.7.0",
+    "electron": "^44.4.0",
+    "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
     "png-to-ico": "^3.0.2",
     "tailwindcss": "^4.3.3",
