@@ -51,6 +51,8 @@ export interface VoloApi {
   keyStatus(): Promise<{ encryptionAvailable: boolean; hasKey: boolean; providerId: string | null }>;
   clearKey(): Promise<{ ok: true }>;
   usage(sessionId: string): Promise<{ input: number; output: number; cost: number }>;
+  getModel(): Promise<{ providerId: string; modelId: string } | null>;
+  setModel(provider: string, model: string): Promise<{ ok: true }>;
   win(action: "min" | "max" | "close"): Promise<{ ok: boolean }>;
   respondApproval(id: string, approved: boolean): Promise<{ ok: true }>;
   onEvent(fn: (msg: VoloEventMessage) => void): void;
@@ -68,6 +70,8 @@ const api: VoloApi = {
   keyStatus: () => ipcRenderer.invoke("volo:key-status"),
   clearKey: () => ipcRenderer.invoke("volo:clear-key"),
   usage: (sessionId) => ipcRenderer.invoke("volo:usage", { sessionId }),
+  getModel: () => ipcRenderer.invoke("volo:get-model"),
+  setModel: (provider, model) => ipcRenderer.invoke("volo:set-model", { provider, model }),
   win: (action) => ipcRenderer.invoke("volo:win", action),
   respondApproval: (id, approved) => ipcRenderer.invoke("volo:respond-approval", { id, approved }),
   onEvent: (fn) => ipcRenderer.on("volo:event", (_e, msg: VoloEventMessage) => fn(msg)),

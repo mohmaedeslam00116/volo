@@ -20,6 +20,8 @@ import { validateKeyInput, decideSave, secretsPath, parseStored } from "./keySto
 import { asProviderId } from "../shared/providers.ts";
 import { summarizeUsage } from "../shared/usage.ts";
 import { mapTranscript } from "../shared/transcript.ts";
+import { settingsPath, parseSettings, serializeSettings, type ModelSettings } from "./settingsStore.ts";
+import { modelsFor } from "../shared/providers.ts";
 import {
   startPayloadSchema,
   sendPayloadSchema,
@@ -139,6 +141,20 @@ function storedPath(): string {
   return secretsPath(app.getPath("userData"));
 }
 
+function modelSettingsPath(): string {
+  return settingsPath(app.getPath("userData"));
+}
+
+/** Stored model preference or null. Invalid records read as absent. */
+function loadModelSettings(): ModelSettings | null {
+  try {
+    const raw = readFileSync(modelSettingsPath(), "utf8");
+    return parseSettings(raw, [...modelsFor("anthropic"), ...modelsFor("openai-native"), ...modelsFor("gemini")]);
+  } catch {
+    return null;
+  }
+}
+
 /** Returns availability + providerId + apiKey. Key material never leaves main. */
 function loadStoredKey(): { available: boolean; providerId: string | null; apiKey: string | null } {
   if (!safeStorage.isEncryptionAvailable())
@@ -171,6 +187,24 @@ ipcMain.handle("volo:set-key", async (_ev, payload: unknown) => {
   return { ok: true, providerId };
 });
 
+ipcMain.handle("volo:get-model", async () => {
+  return loadModelSettings();
+});
+
+ipcMain.handle("volo:set-model", async (_ev, payload: unknown) => {
+  const parsed = parseIpc(
+    z.object({ provider: z.string(), model: z.string().min(1) }),
+    payload,
+  );
+  if (!parsed) throw new Error("bad model args");
+  const providerId = asProviderId(parsed.provider);
+  if (!providerId) throw new Error("unknown-provider");
+  if (!modelsFor(providerId).includes(parsed.model)) throw new Error("unknown-model");
+  const s: ModelSettings = { providerId, modelId: parsed.model };
+  writeFileSync(modelSettingsPath(), serializeSettings(s), { mode: 0o600 });
+  return { ok: true };
+});
+
 ipcMain.handle("volo:key-status", async () => {
   const s = loadStoredKey();
   return { encryptionAvailable: s.available, hasKey: !!s.apiKey, providerId: s.providerId };
@@ -194,16 +228,20 @@ ipcMain.handle("volo:start", async (_ev, payload: unknown) => {
     if (!clean) throw new Error("prompt must be 1-4000 characters");
     const c = await ensureCore();
     const stored = loadStoredKey();
-    // Precedence: picker choice > stored key's provider > env > anthropic.
+    const savedModel = loadModelSettings();
+    // Precedence: live picker choice > persisted preference > stored key's
+    // provider defaults > env > anthropic.
     const providerId =
       asProviderId(model?.provider) ??
+      savedModel?.providerId ??
       asProviderId(stored.providerId) ??
       asProviderId(process.env.VOLO_PROVIDER) ??
       "anthropic";
     const modelId =
-      typeof model?.model === "string" && model.model.length > 0
-        ? model.model
-        : (process.env.VOLO_MODEL ?? "claude-sonnet-5");
+      (model?.provider ? model.model : undefined) ??
+      savedModel?.modelId ??
+      process.env.VOLO_MODEL ??
+      "claude-sonnet-5";
     const workspaceRoot = process.env.VOLO_CWD ?? process.cwd();
     const session = await c.start({
       prompt: clean,

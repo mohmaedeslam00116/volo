@@ -1,5 +1,5 @@
 import { ChevronDown } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DEFAULT_MODELS, PROVIDER_INFO, modelsFor, type ProviderId } from "../../../shared/providers";
 import { useVolo } from "../store";
 
@@ -14,16 +14,32 @@ export function ModelPicker() {
   const [model, setModel] = useState<string>(DEFAULT_MODELS.anthropic);
   const setModelSelection = useVolo((s) => s.setModelSelection);
 
+  // Hydrate from the persisted preference once on mount.
+  useEffect(() => {
+    window.volo
+      .getModel()
+      .then((saved) => {
+        if (saved && modelsFor(saved.providerId).includes(saved.modelId)) {
+          setProvider(saved.providerId as ProviderId);
+          setModel(saved.modelId);
+          setModelSelection({ provider: saved.providerId as ProviderId, model: saved.modelId });
+        }
+      })
+      .catch(() => {});
+  }, [setModelSelection]);
+
   function pickProvider(p: ProviderId) {
     setProvider(p);
     const m = DEFAULT_MODELS[p];
     setModel(m);
     setModelSelection({ provider: p, model: m });
+    window.volo.setModel(p, m).catch(() => {});
   }
 
   function pickModel(m: string) {
     setModel(m);
     setModelSelection({ provider, model: m });
+    window.volo.setModel(provider, m).catch(() => {});
     setOpen(false);
   }
 
