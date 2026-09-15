@@ -102,6 +102,11 @@ button { font: inherit; }
 @keyframes pulse { 50% { opacity: 0.5; } }
 .kv { display: flex; justify-content: space-between; font-size: 12px; padding: 4px 0; color: var(--ink-dim); }
 .kv .mono { color: var(--ink); }
+.field { width: 100%; background: var(--night-input); color: var(--ink);
+  border: 1px solid var(--line); border-radius: var(--r-md); padding: 6px 8px;
+  font-size: 12px; margin-top: 8px; }
+.field:focus { border-color: rgba(59, 130, 246, 0.5); outline: none; }
+select.field option { background: var(--night-raised); }
 .cost { color: var(--lantern-bright); }
 .card { background: var(--night-raised); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 16px; }
 .note { border-inline-start: 2px solid var(--command-blue); background: rgba(59,130,246,0.07);
