@@ -6,9 +6,22 @@ import { readFileSync, writeFileSync, rmSync } from "node:fs";
 import { ClineCore } from "@cline/sdk";
 import { validateKeyInput, decideSave, secretsPath, parseStored } from "./keyStore.js";
 import { summarizeUsage } from "../shared/usage.js";
+import { decideApproval, buildToolPolicies, APPROVAL_TIMEOUT_MS } from "./approvals.js";
 
-const TIER_AUTO = new Set(["read_files", "search_codebase", "search_files", "fetch_web", "list_files"]);
-const TIER_DENY = [/rm\s+-rf/i, /mkfs/i, /diskpart/i, /Invoke-WebRequest.*\|\s*iex/i, /curl.*\|\s*(sh|bash)/i];
+function askWithTimeout(tool, input) {
+  return Promise.race([
+    dialog.showMessageBox(win, {
+      type: "question",
+      buttons: ["Allow", "Deny"],
+      defaultId: 1,
+      cancelId: 1,
+      title: "Volo approval",
+      message: `Allow tool: ${tool}?`,
+      detail: input,
+    }),
+    new Promise((resolve) => setTimeout(() => resolve({ response: 1, timedOut: true }), APPROVAL_TIMEOUT_MS)),
+  ]);
+}
 
 let win = null;
 let cline = null;
@@ -30,28 +43,19 @@ async function ensureCore() {
       requestToolApproval: async (req) => {
         const tool = req.toolName ?? "unknown-tool";
         const input = JSON.stringify(req.input ?? {}).slice(0, 500);
-        for (const rx of TIER_DENY) {
-          if (rx.test(tool) || rx.test(input)) {
-            send("approval", { tool, decision: "hard-deny" });
-            return { approved: false };
-          }
+        const verdict = decideApproval(tool, input);
+        if (verdict === "deny") {
+          send("approval", { tool, decision: "hard-deny" });
+          return { approved: false };
         }
-        if (TIER_AUTO.has(tool)) {
+        if (verdict === "allow") {
           send("approval", { tool, decision: "auto-allow" });
           return { approved: true };
         }
         send("approval", { tool, decision: "asking" });
-        const { response } = await dialog.showMessageBox(win, {
-          type: "question",
-          buttons: ["Allow", "Deny"],
-          defaultId: 1,
-          cancelId: 1,
-          title: "Volo approval",
-          message: `Allow tool: ${tool}?`,
-          detail: input,
-        });
-        const approved = response === 0;
-        send("approval", { tool, decision: approved ? "allowed" : "denied" });
+        const { response, timedOut } = await askWithTimeout(tool, input);
+        const approved = response === 0 && !timedOut;
+        send("approval", { tool, decision: timedOut ? "timeout-deny" : approved ? "allowed" : "denied" });
         return { approved };
       },
     },
@@ -113,12 +117,7 @@ ipcMain.handle("volo:start", async (_ev, { prompt }) => {
       workspaceRoot: process.env.VOLO_CWD ?? process.cwd(),
       enableTools: true,
     },
-    toolPolicies: {
-      read_files: { autoApprove: true },
-      search_codebase: { autoApprove: true },
-      run_commands: { autoApprove: false },
-      editor: { autoApprove: false },
-    },
+    toolPolicies: buildToolPolicies(),
   });
   return { sessionId: session.sessionId };
 });
