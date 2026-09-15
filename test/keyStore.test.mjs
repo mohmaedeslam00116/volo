@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { validateKeyInput, decideSave, secretsPath, parseStored, PROVIDERS } from "../src/main/keyStore.js";
+import { validateKeyInput, decideSave, secretsPath, parseStored } from "../src/main/keyStore.ts";
+import { PROVIDERS } from "../src/shared/providers.ts";
 
 describe("validateKeyInput", () => {
   it("accepts a known provider with a real key", () => {
@@ -18,11 +19,17 @@ describe("validateKeyInput", () => {
     }
   });
   it("rejects absurdly long input", () => {
-    assert.equal(validateKeyInput({ providerId: "openai", apiKey: "x".repeat(501) }).error, "key-too-long");
+    assert.equal(validateKeyInput({ providerId: "anthropic", apiKey: "x".repeat(501) }).error, "key-too-long");
   });
   it("covers every supported provider", () => {
     for (const p of PROVIDERS)
       assert.equal(validateKeyInput({ providerId: p, apiKey: "k".repeat(20) }).ok, true);
+  });
+  it("rejects the unresolvable legacy provider ids", () => {
+    // Verified against @cline/llms BUILT_IN_PROVIDER_IDS: "openai" and
+    // "google" are not valid provider ids; "openai-native" and "gemini" are.
+    for (const p of ["openai", "google"])
+      assert.equal(validateKeyInput({ providerId: p, apiKey: "k".repeat(20) }).ok, false);
   });
 });
 
@@ -37,8 +44,11 @@ describe("decideSave (fail-closed)", () => {
 
 describe("parseStored", () => {
   it("accepts a well-formed record", () => {
-    const r = parseStored(JSON.stringify({ providerId: "google", enc: "ab".repeat(20) }));
-    assert.deepEqual(r, { providerId: "google", enc: "ab".repeat(20) });
+    const r = parseStored(JSON.stringify({ providerId: "gemini", enc: "ab".repeat(20) }));
+    assert.deepEqual(r, { providerId: "gemini", enc: "ab".repeat(20) });
+  });
+  it("rejects records with unresolvable provider ids", () => {
+    assert.equal(parseStored(JSON.stringify({ providerId: "google", enc: "ab".repeat(20) })), null);
   });
   it("rejects garbage, wrong shapes, unknown providers", () => {
     assert.equal(parseStored("not-json"), null);

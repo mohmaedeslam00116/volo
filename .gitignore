@@ -1,5 +1,9 @@
 node_modules/
 dist/
 out/
+*.exe
 *.log
 .env
+
+.tmp-*
+icon.svg

@@ -1,6 +1,7 @@
 import { defineConfig, externalizeDepsPlugin } from "electron-vite";
 import { resolve } from "node:path";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
   main: { plugins: [externalizeDepsPlugin()] },
@@ -9,7 +10,7 @@ export default defineConfig({
     build: { rollupOptions: { output: { format: "cjs", entryFileNames: "index.cjs" } } },
   },
   renderer: {
-    root: resolve(__dirname, "src/renderer"),
-    plugins: [react()],
+    root: resolve(import.meta.dirname, "src/renderer"),
+    plugins: [react(), tailwindcss()],
   },
 });

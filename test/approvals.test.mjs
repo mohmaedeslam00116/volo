@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { decideApproval, buildToolPolicies, APPROVAL_TIMEOUT_MS, TIER_AUTO, TIER_ASK, TIER_DENY_TOOLS } from "../src/main/approvals.js";
+import { decideApproval, buildToolPolicies, APPROVAL_TIMEOUT_MS, TIER_AUTO, TIER_ASK, TIER_DENY_TOOLS } from "../src/main/approvals.ts";
 
 describe("decideApproval", () => {
   it("auto-allows read-only tools", () => {

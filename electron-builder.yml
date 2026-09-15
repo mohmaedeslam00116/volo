@@ -1,0 +1,33 @@
+appId: dev.volo.desktop
+productName: Volo
+copyright: Copyright © 2026 Volo contributors
+
+directories:
+  buildResources: build
+  output: dist
+
+files:
+  - out/**
+  - package.json
+
+# Per-user one-click install: no admin prompt, user-directory install,
+# runs after install, desktop shortcut, clean uninstaller.
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+
+nsis:
+  oneClick: true
+  perMachine: false
+  allowElevation: false
+  allowToChangeInstallationDirectory: false
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: Volo
+  deleteAppDataOnUninstall: false
+
+npmRebuild: false
+electronDownload:
+  mirror: https://github.com/electron/electron/releases/download/
