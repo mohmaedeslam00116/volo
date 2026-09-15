@@ -1,8 +1,10 @@
 // Volo main process: ClineCore (local) + approval tiers + window controls.
 // ClineCore lives ONLY here. Renderer talks via the narrow preload bridge.
-import { app, BrowserWindow, dialog, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, safeStorage } from "electron";
 import { join } from "node:path";
+import { readFileSync, writeFileSync, rmSync } from "node:fs";
 import { ClineCore } from "@cline/sdk";
+import { validateKeyInput, decideSave, secretsPath, parseStored } from "./keyStore.js";
 
 const TIER_AUTO = new Set(["read_files", "search_codebase", "search_files", "fetch_web", "list_files"]);
 const TIER_DENY = [/rm\s+-rf/i, /mkfs/i, /diskpart/i, /Invoke-WebRequest.*\|\s*iex/i, /curl.*\|\s*(sh|bash)/i];
@@ -57,16 +59,55 @@ async function ensureCore() {
   return cline;
 }
 
+function storedPath() {
+  return secretsPath(app.getPath("userData"));
+}
+
+/** Returns { available, providerId, apiKey }. Key material never leaves main. */
+function loadStoredKey() {
+  if (!safeStorage.isEncryptionAvailable()) return { available: false };
+  try {
+    const rec = parseStored(readFileSync(storedPath(), "utf8"));
+    if (!rec) return { available: true, providerId: null, apiKey: null };
+    const apiKey = safeStorage.decryptString(Buffer.from(rec.enc, "hex"));
+    if (!apiKey) return { available: true, providerId: null, apiKey: null };
+    return { available: true, providerId: rec.providerId, apiKey };
+  } catch {
+    return { available: true, providerId: null, apiKey: null };
+  }
+}
+
+ipcMain.handle("volo:set-key", async (_ev, { providerId, apiKey }) => {
+  const v = validateKeyInput({ providerId, apiKey });
+  if (!v.ok) throw new Error(`invalid-key:${v.error}`);
+  if (!decideSave(safeStorage.isEncryptionAvailable()))
+    throw new Error("encryption-unavailable");
+  const enc = safeStorage.encryptString(apiKey).toString("hex");
+  writeFileSync(storedPath(), JSON.stringify({ providerId, enc, updatedAt: new Date().toISOString() }), { mode: 0o600 });
+  return { ok: true, providerId };
+});
+
+ipcMain.handle("volo:key-status", async () => {
+  const s = loadStoredKey();
+  return { encryptionAvailable: s.available, hasKey: !!s.apiKey, providerId: s.providerId };
+});
+
+ipcMain.handle("volo:clear-key", async () => {
+  try { rmSync(storedPath(), { force: true }); } catch { /* already gone */ }
+  return { ok: true };
+});
+
 ipcMain.handle("volo:start", async (_ev, { prompt }) => {
   const clean = validPrompt(prompt);
   if (!clean) throw new Error("prompt must be 1-4000 characters");
   const c = await ensureCore();
+  const stored = loadStoredKey();
   const session = await c.start({
     prompt: clean,
     config: {
-      providerId: process.env.VOLO_PROVIDER ?? "anthropic",
+      providerId: stored.providerId ?? process.env.VOLO_PROVIDER ?? "anthropic",
       modelId: process.env.VOLO_MODEL ?? "claude-sonnet-4-6",
-      apiKey: process.env.VOLO_API_KEY,
+      apiKey: stored.apiKey ?? process.env.VOLO_API_KEY,
       cwd: process.env.VOLO_CWD ?? process.cwd(),
       workspaceRoot: process.env.VOLO_CWD ?? process.cwd(),
       enableTools: true,

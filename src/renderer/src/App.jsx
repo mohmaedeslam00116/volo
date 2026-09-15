@@ -26,8 +26,72 @@ function textOf(e) {
   return JSON.stringify(e).slice(0, 300);
 }
 
-function TitleBar() {
-  const btn = (a, label, cls) => (
+/** Key setup: wrote to OS keychain via main, never readable from here. */
+function KeySettings() {
+  const [providerId, setProviderId] = React.useState("anthropic");
+  const [key, setKey] = React.useState("");
+  const [info, setInfo] = React.useState(null);
+  const [msg, setMsg] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+
+  async function refresh() {
+    try { setInfo(await api().keyStatus()); } catch (e) { setMsg(e.message); }
+  }
+  React.useEffect(() => { refresh(); }, []);
+
+  async function save() {
+    setMsg(""); setSaving(true);
+    try {
+      const r = await api().setKey(providerId, key);
+      setKey("");
+      setMsg(`تم الحفظ في سلسلة النظام (${r.providerId})`);
+      refresh();
+    } catch (e) {
+      setMsg(e.message === "encryption-unavailable"
+        ? "تشفير النظام غير متاح: رُفض الحفظ لحماية مفتاحك"
+        : e.message === "invalid-key:unknown-provider" ? "مزود غير معروف"
+        : e.message === "invalid-key:key-too-short" ? "المفتاح قصير جداً"
+        : e.message);
+    } finally { setSaving(false); }
+  }
+
+  async function clear() {
+    setMsg("");
+    try { await api().clearKey(); setMsg("تم مسح المفتاح"); refresh(); }
+    catch (e) { setMsg(e.message); }
+  }
+
+  return (
+    <div>
+      <div className="section-label">مفتاح النموذج</div>
+      <div className="kv">
+        <span>الحالة</span>
+        <span className="mono">{info ? (info.hasKey ? `محفوظ (${info.providerId})` : "لا مفتاح") : "…"}</span>
+      </div>
+      {info && !info.encryptionAvailable && (
+        <div className="banner-error" role="alert">تشفير النظام غير متاح: لن يُحفظ أي مفتاح هنا.</div>
+      )}
+      <select className="field" value={providerId} onChange={(e) => setProviderId(e.target.value)} aria-label="المزود">
+        <option value="anthropic">Anthropic</option>
+        <option value="openai">OpenAI</option>
+        <option value="google">Google</option>
+      </select>
+      <input
+        className="field" type="password" value={key} dir="ltr"
+        onChange={(e) => setKey(e.target.value)}
+        placeholder="الصق المفتاح (لا يُعرض ولا يُحفظ نصاً)"
+        aria-label="مفتاح API" autoComplete="off"
+      />
+      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        <button className="btn-primary" onClick={save} disabled={saving || !key.trim()}>حفظ في النظام</button>
+        {info?.hasKey && <button className="nav-item" style={{ width: "auto" }} onClick={clear}>مسح</button>}
+      </div>
+      {msg && <p dir="auto" style={{ fontSize: 12, color: "var(--ink-dim)" }}>{msg}</p>}
+    </div>
+  );
+}
+
+function TitleBar() {  const btn = (a, label, cls) => (
     <button key={a} className={cls} aria-label={label} onClick={() => api().win(a)}>{label}</button>
   );
   return (
@@ -115,6 +179,7 @@ export default function App() {
         <div className="section-label">الحالة</div>
         <div className="kv"><span>الاتصال</span><span className="mono">{status === "live" ? "متصلة" : status === "error" ? "خطأ" : "خاملة"}</span></div>
         <div className="kv"><span>التكلفة</span><span className="mono cost">قريباً</span></div>
+        <KeySettings />
       </aside>
 
       <main className="workspace" aria-label="المحادثة">
@@ -124,7 +189,7 @@ export default function App() {
             <div className="empty">
               <h2>فوض مهمتك الأولى للوكيل</h2>
               <ol>
-                <li>اكتب مهمة برمجية بالعربية below</li>
+                <li>اكتب مهمة برمجية بالعربية في الأسفل</li>
                 <li>الوكيل يعمل، وأي أمر خطير يتوقف عند حوار موافقة</li>
                 <li>راجع النتائج والموافقات في اللوحة الجانبية</li>
               </ol>

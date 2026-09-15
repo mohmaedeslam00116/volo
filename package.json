@@ -4,7 +4,7 @@
   "description": "",
   "main": "./out/main/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test test/*.test.mjs",
     "start": "electron ./out/main",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
