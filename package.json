@@ -1,6 +1,6 @@
 {
   "name": "volo",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Volo — Arabic-first desktop shell over the Cline agent harness.",
   "main": "./out/main/index.js",
   "scripts": {
