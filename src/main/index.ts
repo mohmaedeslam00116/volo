@@ -7,6 +7,7 @@
 import { app, BrowserWindow, dialog, ipcMain, safeStorage } from "electron";
 import { join } from "node:path";
 import { readFileSync, writeFileSync, rmSync, existsSync } from "node:fs";
+import { z } from "zod";
 import { ClineCore, getClineDefaultSystemPrompt } from "@cline/sdk";
 import type {
   CoreSessionEvent,
@@ -17,6 +18,7 @@ import type {
 import { validateKeyInput, decideSave, secretsPath, parseStored } from "./keyStore.ts";
 import { asProviderId } from "../shared/providers.ts";
 import { summarizeUsage } from "../shared/usage.ts";
+import { mapTranscript } from "../shared/transcript.ts";
 import {
   startPayloadSchema,
   sendPayloadSchema,
@@ -182,6 +184,8 @@ ipcMain.handle("volo:start", async (_ev, payload: unknown) => {
         enableSpawnAgent: false,
         enableAgentTeams: false,
         systemPrompt: getClineDefaultSystemPrompt({ workspaceRoot }),
+        // Opt-in per SDK docs; required so sessions can be resumed later.
+        checkpoint: { enabled: true },
       },
       toolPolicies: buildToolPolicies(),
     });
@@ -210,8 +214,57 @@ ipcMain.handle("volo:stop", async (_ev, payload: unknown) => {
 
 ipcMain.handle("volo:list", async () => {
   const c = await ensureCore();
-  const sessions: SessionHistoryRecord[] = await c.list(50);
-  return { sessions };
+  const records: SessionHistoryRecord[] = await c.list(50);
+  return {
+    sessions: records.map((r) => ({
+      sessionId: r.sessionId,
+      title: r.metadata?.title,
+      checkpointRunCount: r.metadata?.checkpoint?.latest?.runCount,
+    })),
+  };
+});
+
+ipcMain.handle("volo:history", async (_ev, payload: unknown) => {
+  const parsed = parseIpc(sessionIdPayloadSchema, payload);
+  if (!parsed) throw new Error("bad history args");
+  const c = await ensureCore();
+  // Display-projected transcript (model-tool activity folded into tool blocks).
+  return { transcript: mapTranscript(await c.readDisplayMessages(parsed.sessionId)) };
+});
+
+ipcMain.handle("volo:resume", async (_ev, payload: unknown) => {
+  const parsed = parseIpc(
+    sessionIdPayloadSchema.extend({ checkpointRunCount: z.number().int().positive() }),
+    payload,
+  );
+  if (!parsed) throw new Error("bad resume args");
+  const c = await ensureCore();
+  const stored = loadStoredKey();
+  const providerId = asProviderId(stored.providerId ?? process.env.VOLO_PROVIDER) ?? "anthropic";
+  const workspaceRoot = process.env.VOLO_CWD ?? process.cwd();
+  // Resume = restore-based fork (verified SDK path): history trimmed to the
+  // given checkpoint, workspace files left untouched, then the fork continues.
+  const result = await c.restore({
+    sessionId: parsed.sessionId,
+    checkpointRunCount: parsed.checkpointRunCount,
+    restore: { messages: true, workspace: false },
+    start: {
+      config: {
+        providerId,
+        modelId: process.env.VOLO_MODEL ?? "claude-sonnet-5",
+        apiKey: stored.apiKey ?? process.env.VOLO_API_KEY,
+        cwd: workspaceRoot,
+        workspaceRoot,
+        enableTools: true,
+        enableSpawnAgent: false,
+        enableAgentTeams: false,
+        systemPrompt: getClineDefaultSystemPrompt({ workspaceRoot }),
+        checkpoint: { enabled: true },
+      },
+      toolPolicies: buildToolPolicies(),
+    },
+  });
+  return { sessionId: result.sessionId ?? "" };
 });
 
 ipcMain.handle("volo:usage", async (_ev, payload: unknown) => {

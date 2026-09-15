@@ -1,0 +1,47 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; }
+  body { position: relative; width: 1792px; height: 1024px; }
+  canvas { background: #fff; } /* flashes under the SVG while rasterizing */
+  #c1024 { position: absolute; left: 0; top: 0; width: 1024px; height: 1024px; }
+  #c512 { position: absolute; left: 1024px; top: 0; width: 512px; height: 512px; }
+  #c256 { position: absolute; left: 1536px; top: 0; width: 256px; height: 256px; }
+</style>
+</head>
+<body>
+<canvas id="c1024" width="1024" height="1024"></canvas>
+<canvas id="c512" width="512" height="512"></canvas>
+<canvas id="c256" width="256" height="256"></canvas>
+<img id="icon" src="./icon.svg" style="display:none">
+<script>
+  const img = document.getElementById("icon");
+  function fail(err) {
+    // Visible failure marker so a bad screenshot is unmistakable.
+    for (const size of [1024, 512, 256]) {
+      const ctx = document.getElementById("c" + size).getContext("2d");
+      ctx.fillStyle = "#ff00ff";
+      ctx.fillRect(0, 0, size, size);
+    }
+    document.title = "ERR:" + (err && err.message ? err.message : err);
+  }
+  img.onload = () => {
+    try {
+      for (const size of [1024, 512, 256]) {
+        const canvas = document.getElementById("c" + size);
+        const ctx = canvas.getContext("2d");
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(img, 0, 0, size, size);
+      }
+      window.rasterized = true;
+    } catch (e) {
+      fail(e);
+    }
+  };
+  img.onerror = () => fail(new Error("img load failed"));
+</script>
+</body>
+</html>

@@ -4,6 +4,7 @@
 // treated every event as message text.
 import { create } from "zustand";
 import type { ProviderId } from "../../shared/providers";
+import type { TranscriptMessage } from "../../preload/index";
 import type { VoloApi, VoloEventMessage, SessionListItem } from "../../preload/index";
 
 export interface ModelSelection {
@@ -55,6 +56,11 @@ interface VoloState {
   draft: string;
   meter: string;
   hasKey: boolean | null; // null = unknown yet (boot)
+  viewedHistory: TranscriptMessage[] | null; // transcript of the viewed past session
+  viewingPast: boolean; // true while a past (not live) session is open
+  openPastSession: (id: string) => Promise<void>;
+  backToLive: () => void;
+  resumePastSession: (id: string, checkpointRunCount: number) => Promise<void>;
   modelSelection: ModelSelection;
   setModelSelection: (sel: ModelSelection) => void;
   setDraft: (d: string) => void;
@@ -83,12 +89,50 @@ export const useVolo = create<VoloState>((set, get) => ({
   draft: "",
   meter: "$0.00 · 0 رمز",
   hasKey: null,
+  viewedHistory: null,
+  viewingPast: false,
+  async openPastSession(id) {
+    set({ viewingPast: true, viewedHistory: null, activeId: id });
+    try {
+      const { transcript } = await window.volo.history(id);
+      set({ viewedHistory: transcript });
+    } catch {
+      set({ viewedHistory: [] });
+    }
+  },
+  backToLive: () => set({ viewingPast: false, viewedHistory: null }),
+  async resumePastSession(id, checkpointRunCount) {
+    set({ busy: true, error: "" });
+    try {
+      const { sessionId } = await window.volo.resume(id, checkpointRunCount);
+      set((s) => ({
+        // The fork is a brand-new live session; seed the feed from the transcript.
+        feed: (s.viewedHistory ?? []).map((m) => ({
+          who: m.role === "user" ? ("you" as const) : ("agent" as const),
+          text: m.blocks
+            .filter((b) => b.type === "text")
+            .map((b) => (b as { text: string }).text)
+            .join("\n"),
+        })),
+        activeId: sessionId,
+        sessions: [{ sessionId, title: s.sessions.find((x) => x.sessionId === id)?.title ?? "متابعة" }, ...s.sessions],
+        viewingPast: false,
+        viewedHistory: null,
+        status: "live",
+      }));
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+    } finally {
+      set({ busy: false });
+    }
+  },
   modelSelection: { provider: "anthropic", model: "claude-sonnet-5" },
   setModelSelection: (sel) => set({ modelSelection: sel }),
 
   setDraft: (d) => set({ draft: d }),
   setActive: (id) => set({ activeId: id }),
-  newConversation: () => set({ activeId: null, feed: [], status: "idle", error: "" }),
+  newConversation: () =>
+    set({ activeId: null, feed: [], status: "idle", error: "", viewingPast: false, viewedHistory: null }),
 
   async bootstrap() {
     try {

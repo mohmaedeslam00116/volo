@@ -6,7 +6,21 @@ import { contextBridge, ipcRenderer } from "electron";
 export interface SessionListItem {
   sessionId: string;
   title?: string;
-  status?: string;
+  checkpointRunCount?: number;
+}
+
+export interface TranscriptBlockBase {
+  type: string;
+}
+
+export type TranscriptBlock =
+  | { type: "text"; text: string }
+  | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
+  | { type: "tool_result"; toolUseId: string; name: string; text: string; isError: boolean };
+
+export interface TranscriptMessage {
+  role: "user" | "assistant";
+  blocks: TranscriptBlock[];
 }
 
 export interface VoloEventMessage {
@@ -24,6 +38,8 @@ export interface VoloApi {
   send(sessionId: string, prompt: string): Promise<{ ok: true }>;
   stop(sessionId: string): Promise<{ ok: true }>;
   list(): Promise<{ sessions: SessionListItem[] }>;
+  history(sessionId: string): Promise<{ transcript: TranscriptMessage[] }>;
+  resume(sessionId: string, checkpointRunCount: number): Promise<{ sessionId: string }>;
   setKey(providerId: string, apiKey: string): Promise<{ ok: true; providerId: string }>;
   keyStatus(): Promise<{ encryptionAvailable: boolean; hasKey: boolean; providerId: string | null }>;
   clearKey(): Promise<{ ok: true }>;
@@ -37,6 +53,9 @@ const api: VoloApi = {
   send: (sessionId, prompt) => ipcRenderer.invoke("volo:send", { sessionId, prompt }),
   stop: (sessionId) => ipcRenderer.invoke("volo:stop", { sessionId }),
   list: () => ipcRenderer.invoke("volo:list"),
+  history: (sessionId) => ipcRenderer.invoke("volo:history", { sessionId }),
+  resume: (sessionId, checkpointRunCount) =>
+    ipcRenderer.invoke("volo:resume", { sessionId, checkpointRunCount }),
   setKey: (providerId, apiKey) => ipcRenderer.invoke("volo:set-key", { providerId, apiKey }),
   keyStatus: () => ipcRenderer.invoke("volo:key-status"),
   clearKey: () => ipcRenderer.invoke("volo:clear-key"),

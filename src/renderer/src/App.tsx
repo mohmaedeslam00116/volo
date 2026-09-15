@@ -5,6 +5,7 @@ import { KeySettings } from "./components/KeySettings";
 import { Message } from "./components/Message";
 import { ModelPicker } from "./components/ModelPicker";
 import { TitleBar } from "./components/TitleBar";
+import { TranscriptView } from "./components/TranscriptView";
 import { useVolo } from "./store";
 
 function SessionFeed() {
@@ -46,7 +47,7 @@ function SessionFeed() {
   );
 }
 
-function Composer() {
+function Composer({ hideUntilLive }: { hideUntilLive?: boolean }) {
   const draft = useVolo((s) => s.draft);
   const setDraft = useVolo((s) => s.setDraft);
   const busy = useVolo((s) => s.busy);
@@ -57,6 +58,8 @@ function Composer() {
   const stop = useVolo((s) => s.stop);
 
   const submit = () => (activeId && status === "live" ? sendFollowUp() : start());
+  const hidden = hideUntilLive === true && !(activeId && status === "live");
+  if (hidden) return null;
 
   return (
     <div className="composer">
@@ -210,6 +213,7 @@ export default function App() {
   const feed = useVolo((s) => s.feed);
   const bootstrap = useVolo((s) => s.bootstrap);
   const handleEvent = useVolo((s) => s.handleEvent);
+  const viewingPast = useVolo((s) => s.viewingPast);
 
   React.useEffect(() => {
     bootstrap();
@@ -218,7 +222,7 @@ export default function App() {
 
   // Live cost meter: polls accumulated usage while a session runs.
   React.useEffect(() => {
-    if (status !== "live" || !activeId) return;
+    if (status !== "live" || !activeId || viewingPast) return;
     let stop = false;
     const pull = () => {
       window.volo
@@ -234,7 +238,7 @@ export default function App() {
       stop = true;
       clearInterval(t);
     };
-  }, [status, activeId, feed]);
+  }, [status, activeId, feed, viewingPast]);
 
   return (
     <div className="shell">
@@ -246,8 +250,17 @@ export default function App() {
             {error}
           </div>
         )}
-        <SessionFeed />
-        <Composer />
+        {viewingPast ? (
+          <>
+            <TranscriptView />
+            <Composer hideUntilLive />
+          </>
+        ) : (
+          <>
+            <SessionFeed />
+            <Composer />
+          </>
+        )}
       </main>
       <Inspector />
     </div>

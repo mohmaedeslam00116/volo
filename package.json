@@ -41,6 +41,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^4.7.0",
     "electron-vite": "^5.0.0",
+    "png-to-ico": "^3.0.2",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
     "vite": "^7.3.6"
