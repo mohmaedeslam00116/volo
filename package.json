@@ -2,11 +2,13 @@
   "name": "volo",
   "version": "1.0.0",
   "description": "",
-  "main": "main.js",
+  "main": "./out/main/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "electron .",
-    "dev": "electron ."
+    "test": "node --test test/*.test.mjs",
+    "start": "electron ./out/main",
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview"
   },
   "repository": {
     "type": "git",
@@ -22,6 +24,13 @@
   "homepage": "https://github.com/mohmaedeslam00116/volo#readme",
   "dependencies": {
     "@cline/sdk": "^0.0.83",
-    "electron": "^44.4.0"
+    "electron": "^44.4.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.7.0",
+    "electron-vite": "^5.0.0",
+    "vite": "^7.3.6"
   }
 }
