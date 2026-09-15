@@ -1,0 +1,27 @@
+{
+  "name": "volo",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "electron .",
+    "dev": "electron ."
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mohmaedeslam00116/volo.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/mohmaedeslam00116/volo/issues"
+  },
+  "homepage": "https://github.com/mohmaedeslam00116/volo#readme",
+  "dependencies": {
+    "@cline/sdk": "^0.0.83",
+    "electron": "^44.4.0"
+  }
+}
