@@ -36,6 +36,7 @@ export interface PendingApproval {
   tool: string;
   input: string;
   deadline: number;
+  totalMs: number; // full approval window; drives the draining timer bar
 }
 
 /** Extract displayable text from unknown event payloads, defensively. */
@@ -60,6 +61,7 @@ interface VoloState {
   pendingApproval: PendingApproval | null;
   respondApproval: (approved: boolean) => Promise<void>;
   status: Status;
+  sessionEnded: boolean; // a live session has ended; UI may show a resume hint
   error: string;
   busy: boolean;
   draft: string;
@@ -102,6 +104,7 @@ export const useVolo = create<VoloState>((set, get) => ({
     await window.volo.respondApproval(p.id, approved);
   },
   status: "idle",
+  sessionEnded: false,
   error: "",
   busy: false,
   draft: "",
@@ -141,6 +144,7 @@ export const useVolo = create<VoloState>((set, get) => ({
         viewingPast: false,
         viewedHistory: null,
         status: "live",
+        sessionEnded: false,
       }));
     } catch (e) {
       set({ error: e instanceof Error ? e.message : String(e) });
@@ -154,7 +158,7 @@ export const useVolo = create<VoloState>((set, get) => ({
   setDraft: (d) => set({ draft: d }),
   setActive: (id) => set({ activeId: id }),
   newConversation: () =>
-    set({ activeId: null, feed: [], status: "idle", error: "", viewingPast: false, viewedHistory: null }),
+    set({ activeId: null, feed: [], status: "idle", sessionEnded: false, error: "", viewingPast: false, viewedHistory: null }),
 
   async bootstrap() {
     try {
@@ -182,12 +186,14 @@ export const useVolo = create<VoloState>((set, get) => ({
         timeoutMs?: number;
       };
       if (p?.id && p.tool) {
+        const totalMs = p.timeoutMs ?? 120000;
         set({
           pendingApproval: {
             id: p.id,
             tool: p.tool,
             input: p.input ?? "",
-            deadline: Date.now() + (p.timeoutMs ?? 120000),
+            deadline: Date.now() + totalMs,
+            totalMs,
           },
         });
       }
@@ -224,7 +230,7 @@ export const useVolo = create<VoloState>((set, get) => ({
       return;
     }
     if (p?.type === "ended") {
-      set((s) => (s.status === "live" ? { status: "idle" } : {}));
+      set((s) => (s.status === "live" ? { status: "idle", sessionEnded: true } : {}));
       return;
     }
     if (p?.type === "status") {
@@ -236,7 +242,7 @@ export const useVolo = create<VoloState>((set, get) => ({
   async start() {
     const prompt = get().draft.trim();
     if (!prompt || get().busy) return;
-    set({ busy: true, error: "", status: "starting", feed: [{ who: "you", text: prompt }] });
+    set({ busy: true, error: "", status: "starting", sessionEnded: false, feed: [{ who: "you", text: prompt }] });
     try {
       const { sessionId } = await window.volo.start(prompt, get().modelSelection);
       set((s) => ({
@@ -257,7 +263,7 @@ export const useVolo = create<VoloState>((set, get) => ({
     if (!id) return;
     try {
       await window.volo.stop(id);
-      set({ status: "idle" });
+      set({ status: "idle", sessionEnded: true });
     } catch (e) {
       set({ error: e instanceof Error ? e.message : String(e) });
     }

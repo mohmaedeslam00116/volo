@@ -14,16 +14,27 @@ function SessionFeed() {
   const feed = useVolo((s) => s.feed);
   const status = useVolo((s) => s.status);
   const approvals = useVolo((s) => s.approvals);
-  const bottomRef = React.useRef<HTMLDivElement>(null);
+  const feedRef = React.useRef<HTMLDivElement>(null);
+  const nearBottomRef = React.useRef(true);
+
+  // Stick to the bottom only while the user is actually near it: scrolling up
+  // to read must not be hijacked by the stream. 48px ≈ one message.
+  const onScroll = () => {
+    const el = feedRef.current;
+    if (!el) return;
+    nearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+  };
 
   React.useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!nearBottomRef.current) return;
+    feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight });
   }, [feed]);
 
   const pendingApproval = approvals[0]?.decision === "asking";
+  const showSkeleton = status === "starting" && feed.length <= 1;
 
   return (
-    <div className="feed">
+    <div className="feed" onScroll={onScroll} ref={feedRef}>
       {feed.length === 0 && (
         <div className="empty">
           <h2>فوّض مهمتك الأولى للوكيل</h2>
@@ -40,16 +51,18 @@ function SessionFeed() {
           <Message text={m.text} />
         </div>
       ))}
-      {status === "starting" && (
-        <div className="skeleton" style={{ height: 42 }} aria-label="جارٍ البدء" />
+      {showSkeleton && <div className="skeleton" style={{ height: 42 }} aria-label="جارٍ البدء" />}
+      {pendingApproval && (
+        <div className="note !mt-0" role="status">
+          الوكيل بانتظار موافقتك على خطوته التالية.
+        </div>
       )}
-      {pendingApproval && <span className="chip asking">بانتظار موافقتك…</span>}
-      <div ref={bottomRef} />
+      <div />
     </div>
   );
 }
 
-function Composer({ hideUntilLive }: { hideUntilLive?: boolean }) {
+function Composer({ hideUntilLive, sessionEnded }: { hideUntilLive?: boolean; sessionEnded?: boolean }) {
   const draft = useVolo((s) => s.draft);
   const setDraft = useVolo((s) => s.setDraft);
   const busy = useVolo((s) => s.busy);
@@ -59,8 +72,9 @@ function Composer({ hideUntilLive }: { hideUntilLive?: boolean }) {
   const sendFollowUp = useVolo((s) => s.sendFollowUp);
   const stop = useVolo((s) => s.stop);
 
-  const submit = () => (activeId && status === "live" ? sendFollowUp() : start());
-  const hidden = hideUntilLive === true && !(activeId && status === "live");
+  const live = !!(activeId && status === "live");
+  const submit = () => (live ? sendFollowUp() : start());
+  const hidden = hideUntilLive === true && !live;
   if (hidden) return null;
 
   return (
@@ -79,10 +93,13 @@ function Composer({ hideUntilLive }: { hideUntilLive?: boolean }) {
       />
       <div className="row">
         <ModelPicker />
-        {activeId && status === "live" && (
-          <button className="nav-item w-auto" onClick={stop}>
+        {live && (
+          <button className="btn-ghost" onClick={stop}>
             <StopCircle size={14} /> إيقاف الجلسة
           </button>
+        )}
+        {sessionEnded && !live && activeId && (
+          <span className="text-[11px] text-ink-dim">انتهت الجلسة. اكتب مهمة جديدة للبدء من جديد.</span>
         )}
         <button
           className="send"
@@ -90,7 +107,7 @@ function Composer({ hideUntilLive }: { hideUntilLive?: boolean }) {
           disabled={busy || !draft.trim()}
           aria-label="إرسال"
         >
-          <SendHorizontal size={14} />
+          <SendHorizontal size={14} className="-scale-x-100" />
         </button>
       </div>
     </div>
@@ -137,8 +154,13 @@ function Sidebar() {
       ))}
       <div className="section-label">الحالة</div>
       <div className="kv">
-        <span>الاتصال</span>
-        <span className="val">{status === "live" ? "متصلة" : status === "error" ? "خطأ" : "خاملة"}</span>
+        <span className="flex items-center gap-1.5">
+          <span className={"status-dot " + status} aria-hidden="true" />
+          الاتصال
+        </span>
+        <span className="val">
+          {status === "live" ? "متصلة" : status === "error" ? "خطأ" : "خاملة"}
+        </span>
       </div>
       <div className="kv">
         <span>التكلفة</span>
@@ -196,7 +218,7 @@ function Inspector() {
           >
             {a.tool}
           </span>
-          <div className="font-mono text-[10px] text-ink-faint mt-1" dir="ltr">
+          <div className="font-mono text-[10px] text-ink-dim mt-1" dir="ltr">
             {a.decision} · {a.at}
           </div>
         </div>
@@ -219,7 +241,7 @@ function UpdateBanner() {
     >
       <RefreshCw size={12} />
       <span>إصدار جديد متاح وتم تنزيله.</span>
-      <button className="nav-item w-auto !py-0.5 text-lantern-bright" onClick={installUpdate}>
+      <button className="btn-ghost !border-lantern !text-lantern-bright !py-0.5" onClick={installUpdate}>
         أعد التشغيل للتحديث
       </button>
     </div>
@@ -230,6 +252,7 @@ export default function App() {
   const error = useVolo((s) => s.error);
   const activeId = useVolo((s) => s.activeId);
   const status = useVolo((s) => s.status);
+  const sessionEnded = useVolo((s) => s.sessionEnded);
   const feed = useVolo((s) => s.feed);
   const bootstrap = useVolo((s) => s.bootstrap);
   const handleEvent = useVolo((s) => s.handleEvent);
@@ -268,7 +291,7 @@ export default function App() {
       <main className="workspace area-main" aria-label="المحادثة">
         <UpdateBanner />
         {error && (
-          <div className="banner-error" role="alert" style={{ margin: 16 }}>
+          <div className="banner-error m-4" role="alert">
             {error}
           </div>
         )}
@@ -282,7 +305,7 @@ export default function App() {
         ) : (
           <>
             <SessionFeed />
-            <Composer />
+            <Composer sessionEnded={sessionEnded} />
           </>
         )}
       </main>

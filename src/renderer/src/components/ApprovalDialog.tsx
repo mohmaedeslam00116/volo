@@ -3,9 +3,10 @@ import { useVolo } from "../store";
 
 /**
  * The product's handshake (DESIGN.md): a small centered dialog with the tool
- * name as title, an LTR mono preview, an amber timeout line, and two buttons.
+ * name as title, an LTR mono preview, a draining timeout bar, and two buttons.
  * Native <dialog> gives focus trap, Esc handling, and ::backdrop for free;
- * approvals never appear as toasts or inline links.
+ * approvals never appear as toasts or inline links. Esc and backdrop-click
+ * both deny: the safe default.
  */
 export function ApprovalDialog() {
   const pending = useVolo((s) => s.pendingApproval);
@@ -64,30 +65,28 @@ export function ApprovalDialog() {
           {pending?.input ?? ""}
         </pre>
         {pending && (
-          <div className="flex items-center gap-2 mt-2">
+          <div className="flex items-center gap-2 mt-2" role="timer">
             <div
-              className={"h-1 flex-1 rounded-full " + (urgent ? "bg-danger" : "bg-lantern")}
-              style={{
-                opacity: 0.9,
-                transformOrigin: "right",
-              }}
+              className={"h-1 flex-1 rounded-full approval-timer " + (urgent ? "bg-danger" : "bg-lantern")}
+              style={{ animationDuration: `${pending.totalMs}ms` }}
             />
             <span
-              className={
-                "font-mono text-[11px] " + (urgent ? "text-danger" : "text-lantern-bright")
-              }
+              className={"font-mono text-[11px] " + (urgent ? "text-danger" : "text-lantern-bright")}
               dir="ltr"
             >
               {seconds}s
             </span>
           </div>
         )}
+        <p className="text-[11px] text-ink-dim mt-2 mb-0" dir="auto">
+          بلا ردّ حتى انتهاء المهلة، يُرفض الطلب تلقائياً.
+        </p>
         <div className="flex gap-2 justify-end mt-3">
-          <button className="nav-item w-auto" onClick={() => respond(false)} autoFocus>
+          <button className="btn-ghost" onClick={() => respond(false)} autoFocus>
             رفض {pending?.tool === "run_commands" ? "التشغيل" : "التعديل"}
           </button>
           <button className="btn-primary" onClick={() => respond(true)}>
-            سماح {pending?.tool === "run_commands" ? "بالتشغيل" : "بالتعديل"}
+            سماح {pending?.tool === "run_commands" ? "التشغيل" : "التعديل"}
           </button>
         </div>
       </div>

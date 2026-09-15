@@ -98,7 +98,7 @@ export function KeySettings() {
           حفظ في النظام
         </button>
         {info?.hasKey && (
-          <button className="nav-item w-auto" onClick={clear}>
+          <button className="btn-ghost" onClick={clear}>
             مسح
           </button>
         )}

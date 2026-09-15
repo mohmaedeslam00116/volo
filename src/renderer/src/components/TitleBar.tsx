@@ -31,7 +31,7 @@ export function TitleBar() {
     <header className="titlebar area-title">
       <span className="brand">Volo</span>
       <span>مساحة عمل الوكيل</span>
-      <span className="font-mono text-[10px] text-ink-faint" title={`Volo v${APP_VERSION}`}>
+      <span className="font-mono text-[10px] text-ink-dim" dir="ltr" title={`Volo v${APP_VERSION}`}>
         v{APP_VERSION}
       </span>
       <div className="winbtns">

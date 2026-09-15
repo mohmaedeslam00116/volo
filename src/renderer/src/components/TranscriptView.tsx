@@ -1,4 +1,4 @@
-import { Wrench, ArrowLeft } from "lucide-react";
+import { Wrench, ArrowRight } from "lucide-react";
 import { Message } from "./Message";
 import { useVolo } from "../store";
 
@@ -35,12 +35,10 @@ export function TranscriptView() {
   return (
     <div className="feed" role="log" aria-label="سجل الجلسة">
       <div className="flex items-center gap-2 mb-2">
-        <button className="nav-item w-auto" onClick={backToLive}>
-          <ArrowLeft size={13} /> رجوع
+        <button className="btn-ghost" onClick={backToLive}>
+          <ArrowRight size={13} /> رجوع
         </button>
-        <span className="chip">
-          {viewed?.title ?? viewed?.sessionId ?? "جلسة سابقة"}
-        </span>
+        <span className="chip">{viewed?.title ?? viewed?.sessionId ?? "جلسة سابقة"}</span>
         {canResume && (
           <button
             className="btn-primary ms-auto"

@@ -408,8 +408,8 @@ function createWindow(): void {
   win = new BrowserWindow({
     width: 1280,
     height: 800,
-    minWidth: 960,
-    minHeight: 600,
+    minWidth: 1080,
+    minHeight: 620,
     frame: false,
     backgroundColor: "#0c0c0e",
     ...(existsSync(iconPath) ? { icon: iconPath } : {}),

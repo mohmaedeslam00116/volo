@@ -9,6 +9,13 @@
   - The Faint-Is-Metadata Rule: ink-faint only on non-essential metadata.
   - The LTR-Code Rule: code/terminal/diffs are always direction: ltr.
   - Flat by default: tonal layering + 1px lines, never shadows.
+
+  UI/UX pass (this revision):
+  - command raised to #4f8ff7: white text on it is ≥4.5:1 (WCAG AA body floor).
+  - placeholder/labeled text moved to ink-dim; ink-faint is metadata only.
+  - one quiet-button vocabulary (.btn-ghost) instead of stretched .nav-item.
+  - .note rebuilt as a full-border tonal card (side-stripe ban).
+  - motion conveys state only; every animation has a reduced-motion alternative.
 */
 
 @theme {
@@ -24,8 +31,9 @@
   --color-ink-dim: #8a8a93;
   --color-ink-faint: #5b5b64;
 
-  --color-command: #3b82f6;
-  --color-command-deep: #1d4ed8;
+  --color-command: #4f8ff7;
+  --color-command-deep: #3b82f6;
+  --color-command-press: #1d4ed8;
   --color-lantern: #d97706;
   --color-lantern-bright: #f59e0b;
   --color-approve: #10b981;
@@ -71,7 +79,7 @@ body {
   }
 }
 
-/* ---- component vocabulary (ported 1:1 from tokens.css, logical props only) ---- */
+/* ---- component vocabulary (logical props only; RTL-safe) ---- */
 
 .btn-primary {
   @apply bg-command text-white border-none rounded-sm px-3 py-1.5 text-xs font-medium cursor-pointer transition-colors duration-150 ease-out;
@@ -79,8 +87,24 @@ body {
 .btn-primary:hover {
   @apply bg-command-deep;
 }
+.btn-primary:active {
+  @apply bg-command-press;
+}
 .btn-primary:disabled {
-  @apply bg-line text-ink-faint cursor-not-allowed;
+  @apply bg-line text-ink-dim cursor-not-allowed;
+}
+
+/* Quiet action (stop, deny, back, clear). Same shape as .btn-primary so the
+   button family reads as one vocabulary at different weights. */
+.btn-ghost {
+  @apply inline-flex items-center gap-1.5 bg-transparent text-ink-dim border border-line rounded-sm px-3 py-1.5
+    text-xs font-medium cursor-pointer transition-colors duration-150 ease-out;
+}
+.btn-ghost:hover {
+  @apply bg-night-raised text-ink;
+}
+.btn-ghost:disabled {
+  @apply text-ink-faint border-line-faint cursor-not-allowed;
 }
 
 .nav-item {
@@ -146,7 +170,7 @@ body {
   @apply max-w-[70ch];
 }
 .msg .who {
-  @apply text-[11px] text-ink-faint mb-1;
+  @apply text-[11px] text-ink-dim mb-1;
 }
 .msg p {
   @apply m-0;
@@ -164,10 +188,10 @@ body {
   @apply text-lantern-bright border-lantern;
 }
 .chip.denied {
-  @apply text-danger;
+  @apply text-danger border-danger;
 }
 .chip.allowed {
-  @apply text-approve;
+  @apply text-approve border-approve;
 }
 
 .composer {
@@ -180,7 +204,7 @@ body {
   @apply w-full bg-transparent border-none outline-none text-ink text-sm;
 }
 .composer input::placeholder {
-  @apply text-ink-faint;
+  @apply text-ink-dim;
 }
 .composer .row {
   @apply flex items-center gap-2 mt-2;
@@ -195,11 +219,14 @@ body {
 }
 
 .send {
-  @apply ms-auto w-7 h-7 rounded-full border-none bg-[#272732] text-ink-dim cursor-pointer text-sm
+  @apply ms-auto w-7 h-7 rounded-full border-none bg-[#272732] text-ink cursor-pointer text-sm
     transition-colors duration-150 ease-out;
 }
 .send:hover {
   @apply bg-command text-white;
+}
+.send:active {
+  @apply bg-command-press;
 }
 .send:disabled {
   @apply opacity-50 cursor-wait;
@@ -221,6 +248,7 @@ body {
   border: 1px solid var(--color-danger);
 }
 
+/* Skeleton = loading state, laid out like the prose it stands in for. */
 .skeleton {
   @apply rounded-sm bg-night-raised min-h-[14px];
   animation: pulse 1.2s ease-in-out infinite;
@@ -255,8 +283,10 @@ body {
 }
 
 .note {
-  @apply border-s-2 border-command rounded-e-md p-3 text-[13px] mt-3;
+  /* Full-border tonal card. The old side-stripe accent is banned. */
+  @apply rounded-md p-3 text-[13px] mt-3 border;
   background: color-mix(in srgb, var(--color-command) 7%, transparent);
+  border-color: color-mix(in srgb, var(--color-command) 35%, transparent);
 }
 
 .pane-title {
@@ -264,7 +294,36 @@ body {
 }
 
 .section-label {
-  @apply text-[11px] font-semibold text-ink-faint mt-4 mb-2;
+  @apply text-[11px] font-semibold text-ink-dim mt-4 mb-2;
+}
+
+/* Live session indicator: state carried by color, not by decoration. */
+.status-dot {
+  @apply inline-block w-2 h-2 rounded-full shrink-0;
+}
+.status-dot.live {
+  background: var(--color-approve);
+}
+.status-dot.error {
+  background: var(--color-danger);
+}
+.status-dot.idle,
+.status-dot.starting {
+  background: var(--color-ink-faint);
+}
+
+/* Approval timeout: the bar drains as the deadline approaches. */
+.approval-timer {
+  transform-origin: right; /* drains with the RTL reading direction */
+  animation: approval-drain linear forwards;
+}
+@keyframes approval-drain {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
 }
 
 /* ---- shell grid ---- */
@@ -291,14 +350,24 @@ body {
   grid-area: insp;
 }
 
-@media (max-width: 1100px) {
+/* The approval record is the product's law: never hidden by window size.
+   Below 1080px the inspector narrows instead of disappearing; the sidebar
+   narrows at 900px. Minimum window width is 1080px. */
+@media (max-width: 1339px) {
   .shell {
-    grid-template-columns: 220px 1fr;
-    grid-template-areas:
-      "title title"
-      "side main";
+    grid-template-columns: 220px 1fr 280px;
   }
-  .area-insp {
+}
+@media (max-width: 1099px) {
+  .shell {
+    grid-template-columns: 200px 1fr 240px;
+  }
+}
+@media (max-width: 899px) {
+  .shell {
+    grid-template-columns: 0px 1fr 240px;
+  }
+  .area-side {
     display: none;
   }
 }

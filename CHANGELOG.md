@@ -6,6 +6,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- UI/UX polish pass across the whole shell: primary-button blue raised so its
+  label text meets the WCAG AA 4.5:1 contrast floor; secondary text, placeholders,
+  and speaker labels lifted off `ink-faint` onto readable tones; approval-log
+  timestamps readable again.
+- One quiet-button vocabulary (`.btn-ghost`) for stop / deny / back / clear /
+  update actions, matching the primary button's shape; the stretched
+  navigation-item style is retired.
+- The approval dialog's timeout bar now drains in real time and the dialog states
+  the timeout auto-deny explicitly.
+- Session end is visible: when a live session ends, the composer explains it and
+  the next task starts fresh; the auto-scroll no longer hijacks the feed while you
+  scroll up to read.
+- The inspector (approval record) is never hidden by window size: at narrow widths
+  the sidebar and panel narrow instead of disappearing, and the window minimum
+  width was raised to match.
+- Model picker closes on Escape and outside clicks, shows the model id
+  left-to-right, and drops a decorative amber dot that carried no state; the
+  connection status now uses a real status dot colored by state.
+- Onboarding errors render in the danger color instead of muted gray, and the
+  provider select disables while a key save is in flight.
+- RTL fixes: back arrow and send icons mirror correctly for right-to-left reading,
+  and the titlebar version string is pinned left-to-right.
+
+### Fixed
+
+- The info-note accent used a side-stripe border (a banned pattern); it is now a
+  full-border tonal card.
+- Deny/allowed status chips lost their border color; all three approval states are
+  now distinguishable by color alone.
+
 ## [1.0.0] - 2026-09-16
 
 ### Added
