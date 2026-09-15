@@ -6,7 +6,7 @@
 //  - provider IDs: anthropic | openai-native | gemini (never "openai"/"google")
 import { app, BrowserWindow, dialog, ipcMain, safeStorage } from "electron";
 import { join } from "node:path";
-import { readFileSync, writeFileSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { ClineCore, getClineDefaultSystemPrompt } from "@cline/sdk";
 import type {
   CoreSessionEvent,
@@ -230,6 +230,8 @@ ipcMain.handle("volo:win", (_ev, action: unknown) => {
 });
 
 function createWindow(): void {
+  // Dev: use the source icon. Packaged: the exe carries the embedded icon.
+  const iconPath = join(__dirname, "../../build/icon.ico");
   win = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -237,6 +239,7 @@ function createWindow(): void {
     minHeight: 600,
     frame: false,
     backgroundColor: "#0c0c0e",
+    ...(existsSync(iconPath) ? { icon: iconPath } : {}),
     webPreferences: { preload: join(__dirname, "../preload/index.cjs") },
   });
   if (process.env.ELECTRON_RENDERER_URL) win.loadURL(process.env.ELECTRON_RENDERER_URL);

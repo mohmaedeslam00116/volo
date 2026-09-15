@@ -1,0 +1,7 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Volo: The Night Shift Console. Dark tile, command-blue chevron, lantern-amber cursor. -->
+  <!-- Full-bleed square: taskbar/installer contexts render at tiny sizes; no transparency tricks. -->
+  <rect width="512" height="512" fill="#0c0c0e"/>
+  <polyline points="150,170 252,272 150,374" fill="none" stroke="#3b82f6" stroke-width="58" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="292" y="330" width="96" height="58" rx="12" fill="#d97706"/>
+</svg>
