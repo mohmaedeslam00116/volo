@@ -2,6 +2,7 @@ import { MessageSquarePlus, SendHorizontal, StopCircle } from "lucide-react";
 import React from "react";
 import { formatUsage } from "../../shared/usage";
 import { KeySettings } from "./components/KeySettings";
+import { OnboardingGate } from "./components/OnboardingGate";
 import { Message } from "./components/Message";
 import { ModelPicker } from "./components/ModelPicker";
 import { TitleBar } from "./components/TitleBar";
@@ -214,6 +215,7 @@ export default function App() {
   const bootstrap = useVolo((s) => s.bootstrap);
   const handleEvent = useVolo((s) => s.handleEvent);
   const viewingPast = useVolo((s) => s.viewingPast);
+  const hasKey = useVolo((s) => s.hasKey);
 
   React.useEffect(() => {
     bootstrap();
@@ -250,7 +252,9 @@ export default function App() {
             {error}
           </div>
         )}
-        {viewingPast ? (
+        {hasKey === false && !viewingPast ? (
+          <OnboardingGate />
+        ) : viewingPast ? (
           <>
             <TranscriptView />
             <Composer hideUntilLive />
