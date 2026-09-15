@@ -1,4 +1,5 @@
 import React from "react";
+import { formatUsage } from "../../shared/usage.js";
 
 const api = () => window.volo;
 
@@ -116,6 +117,7 @@ export default function App() {
   const [error, setError] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [draft, setDraft] = React.useState("");
+  const [meter, setMeter] = React.useState("0");
   const bottomRef = React.useRef(null);
 
   React.useEffect(() => {
@@ -132,6 +134,19 @@ export default function App() {
   React.useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [feed]);
+
+  React.useEffect(() => {
+    if (status !== "live" || !activeId) return;
+    let stop = false;
+    const pull = () => {
+      api().usage(activeId)
+        .then((u) => { if (!stop) setMeter(formatUsage(u).line); })
+        .catch(() => {});
+    };
+    pull();
+    const t = setInterval(pull, 3000);
+    return () => { stop = true; clearInterval(t); };
+  }, [status, activeId, feed]);
 
   async function start() {
     const prompt = draft.trim();
@@ -178,7 +193,7 @@ export default function App() {
         ))}
         <div className="section-label">الحالة</div>
         <div className="kv"><span>الاتصال</span><span className="mono">{status === "live" ? "متصلة" : status === "error" ? "خطأ" : "خاملة"}</span></div>
-        <div className="kv"><span>التكلفة</span><span className="mono cost">قريباً</span></div>
+        <div className="kv"><span>التكلفة</span><span className="mono cost" dir="auto">{activeId ? meter : "0"}</span></div>
         <KeySettings />
       </aside>
 
