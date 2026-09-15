@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld("volo", {
   setKey: (providerId, apiKey) => ipcRenderer.invoke("volo:set-key", { providerId, apiKey }),
   keyStatus: () => ipcRenderer.invoke("volo:key-status"),
   clearKey: () => ipcRenderer.invoke("volo:clear-key"),
+  usage: (sessionId) => ipcRenderer.invoke("volo:usage", { sessionId }),
   win: (action) => ipcRenderer.invoke("volo:win", action),
   onEvent: (fn) => ipcRenderer.on("volo:event", (_e, msg) => fn(msg)),
 });

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { readFileSync, writeFileSync, rmSync } from "node:fs";
 import { ClineCore } from "@cline/sdk";
 import { validateKeyInput, decideSave, secretsPath, parseStored } from "./keyStore.js";
+import { summarizeUsage } from "../shared/usage.js";
 
 const TIER_AUTO = new Set(["read_files", "search_codebase", "search_files", "fetch_web", "list_files"]);
 const TIER_DENY = [/rm\s+-rf/i, /mkfs/i, /diskpart/i, /Invoke-WebRequest.*\|\s*iex/i, /curl.*\|\s*(sh|bash)/i];
@@ -140,6 +141,12 @@ ipcMain.handle("volo:abort", async (_ev, { sessionId }) => {
 ipcMain.handle("volo:list", async () => {
   const c = await ensureCore();
   return { sessions: await c.list() };
+});
+
+ipcMain.handle("volo:usage", async (_ev, { sessionId }) => {
+  if (typeof sessionId !== "string" || !sessionId) throw new Error("bad usage args");
+  const c = await ensureCore();
+  return summarizeUsage(await c.getAccumulatedUsage(sessionId));
 });
 
 ipcMain.handle("volo:win", (_ev, action) => {
