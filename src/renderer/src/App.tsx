@@ -1,6 +1,7 @@
 import { MessageSquarePlus, SendHorizontal, StopCircle } from "lucide-react";
 import React from "react";
 import { formatUsage } from "../../shared/usage";
+import { ApprovalDialog } from "./components/ApprovalDialog";
 import { KeySettings } from "./components/KeySettings";
 import { OnboardingGate } from "./components/OnboardingGate";
 import { Message } from "./components/Message";
@@ -42,7 +43,7 @@ function SessionFeed() {
       {status === "starting" && (
         <div className="skeleton" style={{ height: 42 }} aria-label="جارٍ البدء" />
       )}
-      {pendingApproval && <span className="chip asking">بانتظار موافقتك في حوار النظام…</span>}
+      {pendingApproval && <span className="chip asking">بانتظار موافقتك…</span>}
       <div ref={bottomRef} />
     </div>
   );
@@ -267,6 +268,7 @@ export default function App() {
         )}
       </main>
       <Inspector />
+      <ApprovalDialog />
     </div>
   );
 }

@@ -32,5 +32,10 @@ export const setKeyPayloadSchema = z.object({
   apiKey: z.string().min(8).max(500),
 });
 
+export const approvalResponseSchema = z.object({
+  id: z.string().min(1),
+  approved: z.boolean(),
+});
+
 export type StartPayload = z.infer<typeof startPayloadSchema>;
 export type SendPayload = z.infer<typeof sendPayloadSchema>;

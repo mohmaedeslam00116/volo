@@ -31,6 +31,13 @@ export interface ApprovalLogItem {
   at: string;
 }
 
+export interface PendingApproval {
+  id: string;
+  tool: string;
+  input: string;
+  deadline: number;
+}
+
 /** Extract displayable text from unknown event payloads, defensively. */
 export function textOf(e: unknown): string {
   if (!e || typeof e !== "object") return String(e ?? "");
@@ -50,6 +57,8 @@ interface VoloState {
   activeId: string | null;
   feed: FeedItem[];
   approvals: ApprovalLogItem[];
+  pendingApproval: PendingApproval | null;
+  respondApproval: (approved: boolean) => Promise<void>;
   status: Status;
   error: string;
   busy: boolean;
@@ -83,6 +92,13 @@ export const useVolo = create<VoloState>((set, get) => ({
   activeId: null,
   feed: [],
   approvals: [],
+  pendingApproval: null,
+  async respondApproval(approved) {
+    const p = get().pendingApproval;
+    if (!p) return;
+    set({ pendingApproval: null });
+    await window.volo.respondApproval(p.id, approved);
+  },
   status: "idle",
   error: "",
   busy: false,
@@ -147,6 +163,25 @@ export const useVolo = create<VoloState>((set, get) => ({
   },
 
   handleEvent(msg) {
+    if (msg.evt === "approval-request") {
+      const p = msg.payload as {
+        id?: string;
+        tool?: string;
+        input?: string;
+        timeoutMs?: number;
+      };
+      if (p?.id && p.tool) {
+        set({
+          pendingApproval: {
+            id: p.id,
+            tool: p.tool,
+            input: p.input ?? "",
+            deadline: Date.now() + (p.timeoutMs ?? 120000),
+          },
+        });
+      }
+      return;
+    }
     if (msg.evt === "approval") {
       const p = msg.payload as { tool?: string; decision?: string };
       set((s) => ({

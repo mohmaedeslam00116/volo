@@ -23,8 +23,15 @@ export interface TranscriptMessage {
   blocks: TranscriptBlock[];
 }
 
+export interface ApprovalRequestPayload {
+  id: string;
+  tool: string;
+  input: string;
+  timeoutMs: number;
+}
+
 export interface VoloEventMessage {
-  evt: "approval" | "session";
+  evt: "approval" | "approval-request" | "session";
   payload: unknown;
 }
 
@@ -45,6 +52,7 @@ export interface VoloApi {
   clearKey(): Promise<{ ok: true }>;
   usage(sessionId: string): Promise<{ input: number; output: number; cost: number }>;
   win(action: "min" | "max" | "close"): Promise<{ ok: boolean }>;
+  respondApproval(id: string, approved: boolean): Promise<{ ok: true }>;
   onEvent(fn: (msg: VoloEventMessage) => void): void;
 }
 
@@ -61,6 +69,7 @@ const api: VoloApi = {
   clearKey: () => ipcRenderer.invoke("volo:clear-key"),
   usage: (sessionId) => ipcRenderer.invoke("volo:usage", { sessionId }),
   win: (action) => ipcRenderer.invoke("volo:win", action),
+  respondApproval: (id, approved) => ipcRenderer.invoke("volo:respond-approval", { id, approved }),
   onEvent: (fn) => ipcRenderer.on("volo:event", (_e, msg: VoloEventMessage) => fn(msg)),
 };
 

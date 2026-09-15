@@ -4,6 +4,7 @@
 //  - send = runTurn({ sessionId, prompt }) — flat, no {type:"user_message"} wrapper
 //  - stop ends the session; abort only interrupts the in-flight tool
 //  - provider IDs: anthropic | openai-native | gemini (never "openai"/"google")
+import { randomUUID } from "node:crypto";
 import { app, BrowserWindow, dialog, ipcMain, safeStorage } from "electron";
 import { join } from "node:path";
 import { readFileSync, writeFileSync, rmSync, existsSync } from "node:fs";
@@ -24,6 +25,7 @@ import {
   sendPayloadSchema,
   sessionIdPayloadSchema,
   setKeyPayloadSchema,
+  approvalResponseSchema,
 } from "../shared/schemas.ts";
 import {
   decideApproval,
@@ -49,21 +51,54 @@ function parseIpc<T>(schema: { safeParse: (v: unknown) => { success: true; data:
   return r.success ? r.data : null;
 }
 
-async function askWithTimeout(tool: string, input: string) {
-  return Promise.race([
-    dialog.showMessageBox(win!, {
+// ---- Approval round-trip ------------------------------------------------
+// Ask-tier tools pause here and surface the DESIGN.md signature dialog in the
+// renderer over IPC. Fallbacks: the window is minimized → the old native OS
+// dialog; no window at all → deny. Timeout → auto-deny. Deny is always the
+// safe default.
+const pendingApprovals = new Map<string, (approved: boolean) => void>();
+
+function nativeApproval(tool: string, input: string): Promise<boolean> {
+  return dialog
+    .showMessageBox(win!, {
       type: "question",
       buttons: ["Allow", "Deny"],
       defaultId: 1,
       cancelId: 1,
       title: "Volo approval",
       message: `Allow tool: ${tool}?`,
-      detail: input,
-    }),
-    new Promise<{ response: number; timedOut: boolean }>((resolve) =>
-      setTimeout(() => resolve({ response: 1, timedOut: true }), APPROVAL_TIMEOUT_MS),
-    ),
-  ]);
+      detail: input.slice(0, 500),
+    })
+    .then((r) => r.response === 0 && !r.checkboxChecked);
+}
+
+async function askForApproval(tool: string, input: string): Promise<{ approved: boolean; timedOut: boolean }> {
+  const id = randomUUID();
+  let timedOut = false;
+  let settle!: (v: boolean) => void;
+  const answer = new Promise<boolean>((resolve) => {
+    settle = resolve;
+  });
+  pendingApprovals.set(id, settle);
+
+  if (win && !win.isDestroyed() && !win.isMinimized()) {
+    // Primary path: renderer-hosted signature dialog.
+    send("approval-request", { id, tool, input, timeoutMs: APPROVAL_TIMEOUT_MS });
+  } else if (win && !win.isDestroyed()) {
+    // Fallback: minimized to a native OS dialog so the gate is never invisible.
+    nativeApproval(tool, input).then(settle);
+  } else {
+    settle(false);
+  }
+
+  const timer = setTimeout(() => {
+    timedOut = true;
+    settle(false);
+  }, APPROVAL_TIMEOUT_MS);
+  const approved = await answer;
+  clearTimeout(timer);
+  pendingApprovals.delete(id);
+  return { approved, timedOut };
 }
 
 async function ensureCore(): Promise<ClineCore> {
@@ -74,7 +109,6 @@ async function ensureCore(): Promise<ClineCore> {
     capabilities: {
       requestToolApproval: async (req: ToolApprovalRequest): Promise<ToolApprovalResult> => {
         const tool = req.toolName ?? "unknown-tool";
-        const input = JSON.stringify(req.input ?? {}).slice(0, 500);
         const verdict = decideApproval(tool, req.input);
         if (verdict === "deny") {
           send("approval", { tool, decision: "hard-deny" });
@@ -85,9 +119,8 @@ async function ensureCore(): Promise<ClineCore> {
           return { approved: true };
         }
         send("approval", { tool, decision: "asking" });
-        const result = await askWithTimeout(tool, input);
-        const timedOut = "timedOut" in result && result.timedOut;
-        const approved = result.response === 0 && !timedOut;
+        const pretty = JSON.stringify(req.input ?? {}, null, 2).slice(0, 2000);
+        const { approved, timedOut } = await askForApproval(tool, pretty);
         send("approval", {
           tool,
           decision: timedOut ? "timeout-deny" : approved ? "allowed" : "denied",
@@ -272,6 +305,15 @@ ipcMain.handle("volo:usage", async (_ev, payload: unknown) => {
   if (!parsed) throw new Error("bad usage args");
   const c = await ensureCore();
   return summarizeUsage(await c.getAccumulatedUsage(parsed.sessionId));
+});
+
+ipcMain.handle("volo:respond-approval", async (_ev, payload: unknown) => {
+  const parsed = parseIpc(approvalResponseSchema, payload);
+  if (!parsed) return { ok: false };
+  const settle = pendingApprovals.get(parsed.id);
+  if (!settle) return { ok: false }; // already timed out
+  settle(parsed.approved);
+  return { ok: true };
 });
 
 ipcMain.handle("volo:win", (_ev, action: unknown) => {
