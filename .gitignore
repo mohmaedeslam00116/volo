@@ -3,3 +3,6 @@ dist/
 out/
 *.log
 .env
+
+.tmp-*
+icon.svg
